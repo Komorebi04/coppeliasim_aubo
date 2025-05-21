@@ -28,7 +28,7 @@ def i5_robot():
         fk=robot.forward_kin(real_pos['joint'])
         np.set_printoptions(suppress=True)
         rpy=robot.quaternion_to_rpy(fk['ori'])
-        rpy=np.array(rpy)*180/pi
+        # rpy=np.array(rpy)*180/pi
         print('正解:',fk)
         print('正解欧拉角：',rpy)
         #逆解

@@ -1,62 +1,88 @@
 from robotcontrol import *
 import numpy as np
 import sim
+import math
+import time
 
-def i5_robot():
-    robot = Auboi5Robot()
-
-    ret = robot.initialize()
-
-    handle = robot.create_context()
-
-    ip = "192.168.24.129"
-    port = 8899
-    result = robot.connect(ip,port)
-
-    if result == 0:
-        # robot.robot_startup()
-        real_pos = robot.get_current_waypoint()
+class AuboRobot:
+    def __init__(self, ip="192.168.24.129", port=8899):
+        self.robot = Auboi5Robot()
+        self.ip = ip
+        self.port = port
+        self.connected = False
+        
+    def connect(self):
+        ret = self.robot.initialize()
+        handle = self.robot.create_context()
+        result = self.robot.connect(self.ip, self.port)
+        self.connected = (result == 0)
+        return self.connected
+    
+    def get_rpy_orientation(self):
+        if not self.connected:
+            print("Not connected to robot")
+            return None
+            
+        real_pos = self.robot.get_current_waypoint()
         print(real_pos)
-
-        # joint_radian = (math.radians(0), math.radians(10), math.radians(90), math.radians(10), math.radians(90), math.radians(0))  # 或者 [0, 0, 0, 0, 0, 0]
-        # move1 = robot.move_joint(joint_radian)
-        # print("move over")
-        # move2 = robot.move_line(joint_radian)
-        #正解
-        # fk=robot.forward_kin(joint_radian)
-        fk=robot.forward_kin(real_pos['joint'])
+        
+        fk = self.robot.forward_kin(real_pos['joint'])
         np.set_printoptions(suppress=True)
-        rpy=robot.quaternion_to_rpy(fk['ori'])
-        # rpy=np.array(rpy)*180/pi
+        rpy = self.robot.quaternion_to_rpy(fk['ori'])
+        # rpy[0] -= np.pi/2
+        
         print(fk)
         print(rpy)
-        #逆解
-        # ik=robot.inverse_kin(joint_radian,fk['pos'],fk['ori'])
-        ik=robot.inverse_kin(real_pos['joint'],fk['pos'],fk['ori'])
-        joint_radian=ik['joint']
-        joint_deg=np.array(ik['joint'])*180/pi
+        
+        ik = self.robot.inverse_kin(real_pos['joint'], fk['pos'], fk['ori'])
+        joint_radian = ik['joint']
+        joint_deg = np.array(ik['joint'])*180/np.pi
+        
         print(joint_radian)
         print(joint_deg)
         return rpy
-
-    else:
-        print("failed connet")
-
-def i5_robot_arm(clientID,handlname,rpy_orientation,relative_handle = -1):
-    sim.simxGetPingTime(clientID=clientID)
-    _,tip = sim.simxGetObjectHandle(clientID,handlname,sim.simx_opmode_blocking)
-    _,tip_position = sim.simxGetObjectPosition(clientID,tip,relative_handle,sim.simx_opmode_blocking)
-    _,tip_orientation = sim.simxGetObjectOrientation(clientID,tip,relative_handle,sim.simx_opmode_blocking)
-    # sim.simxSetObjectPosition(clientID,tip,relative_handle,(tip_position[0]+move_per_distance,
-    #                                                         tip_position[1],
-    #                                                         tip_position[2]),
-    #                                                         sim.simx_opmode_oneshot)
-    sim.simxSetObjectOrientation(clientID,tip,relative_handle,(tip_orientation[0],
-                                                               tip_orientation[1],
-                                                               tip_orientation[2]),
-                                                               sim.simx_opmode_oneshot)
     
-    print("tip opsition = {}\ntip orientation = {}".format(tip_position,tip_orientation))
+    def get_position(self):
+        if not self.connected:
+            print("Not connected to robot")
+            return None
+
+        real_pos = self.robot.get_current_waypoint()
+        # print(real_pos)
+        return real_pos['pos']
+    
+    def get_joint_angles(self):
+        if not self.connected:
+            print("Not connected to robot")
+            return None
+            
+        real_pos = self.robot.get_current_waypoint()
+        return real_pos['joint']  # 返回关节角度数组
+        
+    def disconnect(self):
+        if self.connected:
+            self.robot.disconnect()
+            self.connected = False
+
+def i5_robot_arm(clientID, handlname, joint_angles=None, rpy_orientation=None, position=None, relative_handle=-1):
+    sim.simxGetPingTime(clientID=clientID)
+    _, tip = sim.simxGetObjectHandle(clientID, handlname, sim.simx_opmode_blocking)
+    
+    if joint_angles is not None:
+        # 设置每个关节的角度
+        for i in range(len(joint_angles)):
+            _, joint_handle = sim.simxGetObjectHandle(clientID, f'{handlname}/i5_joint{i+1}', sim.simx_opmode_blocking)
+            sim.simxSetJointPosition(clientID, joint_handle, joint_angles[i], sim.simx_opmode_oneshot)
+    
+    if position is not None and rpy_orientation is not None:
+        # 设置末端执行器的位置和姿态
+        _, tip_position = sim.simxGetObjectPosition(clientID, tip, relative_handle, sim.simx_opmode_blocking)
+        _, tip_orientation = sim.simxGetObjectOrientation(clientID, tip, relative_handle, sim.simx_opmode_blocking)
+        
+        sim.simxSetObjectPosition(clientID, tip, relative_handle, position, sim.simx_opmode_oneshot)
+        sim.simxSetObjectOrientation(clientID, tip, relative_handle, rpy_orientation, sim.simx_opmode_oneshot)
+        
+        print(f"设置位置: {position}, 设置姿态: {rpy_orientation}")
 
 def main():
 
@@ -71,27 +97,23 @@ def main():
     sim.simxStartSimulation(clientID,sim.simx_opmode_blocking)
     print("simulation start")
 
-    ori = i5_robot()
-    #base基座
-    i5_robot_arm(clientID,'/base_link',ori)
-    print('run over')
-    # #一轴
-    # i5_robot_arm(clientID,'/base_link/link1_link')
-    # #二轴
-    # i5_robot_arm(clientID,'/base_link/link2_link')
-    # #三轴
-    # i5_robot_arm(clientID,'/base_link/link3_link')
-    # #四轴
-    # i5_robot_arm(clientID,'/base_link/link4_link')
-    # #五轴
-    # i5_robot_arm(clientID,'/base_link/link5_link')
-    # #六轴
-    # i5_robot_arm(clientID,'/base_link/link6_link')
-    # #末端执行器
-    # i5_robot_arm(clientID,'/base_link/i5_finger')
-
-    sim.simxStopSimulation(clientID,sim.simx_opmode_blocking)
-
+    robot = AuboRobot()
+    if robot.connect():
+        # 启用同步模式
+        sim.simxSynchronous(clientID, True)
+        while True:
+            # 获取真实机械臂数据
+            joint_angles = robot.get_joint_angles()
+            ori = robot.get_rpy_orientation()
+            pos = robot.get_position()
+            
+            # 同步到仿真机械臂
+            i5_robot_arm(clientID, '/base_link', joint_angles, ori, pos)
+            
+            # 触发仿真步进
+            sim.simxSynchronousTrigger(clientID)
+            
+    sim.simxStopSimulation(clientID, sim.simx_opmode_blocking)
     print("simulation stop")
     sim.simxFinish(clientID)
 
