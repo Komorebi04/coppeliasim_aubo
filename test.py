@@ -3,6 +3,8 @@ import numpy as np
 import sim
 import math
 import time
+import cv2
+import matplotlib.pyplot as plt
 
 class AuboRobot:
     def __init__(self, ip="192.168.24.129", port=8899):
@@ -64,25 +66,54 @@ class AuboRobot:
             self.robot.disconnect()
             self.connected = False
 
-def i5_robot_arm(clientID, handlname, joint_angles=None, rpy_orientation=None, position=None, relative_handle=-1):
+def set_joint_angles(clientID, handlname, joint_angles):
+    """设置机械臂关节角度"""
+    sim.simxGetPingTime(clientID=clientID)
+    for i in range(len(joint_angles)):
+        _, joint_handle = sim.simxGetObjectHandle(clientID, f'{handlname}/Revolute_joint{i+1}', sim.simx_opmode_blocking)
+        print("关节节点句柄:",joint_handle)
+        sim.simxSetJointPosition(clientID, joint_handle, joint_angles[i], sim.simx_opmode_oneshot)
+
+def set_position(clientID, handlname, position, relative_handle=-1):
+    """设置机械臂末端位置"""
     sim.simxGetPingTime(clientID=clientID)
     _, tip = sim.simxGetObjectHandle(clientID, handlname, sim.simx_opmode_blocking)
-    
-    if joint_angles is not None:
-        # 设置每个关节的角度
-        for i in range(len(joint_angles)):
-            _, joint_handle = sim.simxGetObjectHandle(clientID, f'{handlname}/i5_joint{i+1}', sim.simx_opmode_blocking)
-            sim.simxSetJointPosition(clientID, joint_handle, joint_angles[i], sim.simx_opmode_oneshot)
-    
-    if position is not None and rpy_orientation is not None:
-        # 设置末端执行器的位置和姿态
-        _, tip_position = sim.simxGetObjectPosition(clientID, tip, relative_handle, sim.simx_opmode_blocking)
-        _, tip_orientation = sim.simxGetObjectOrientation(clientID, tip, relative_handle, sim.simx_opmode_blocking)
-        
-        sim.simxSetObjectPosition(clientID, tip, relative_handle, position, sim.simx_opmode_oneshot)
-        sim.simxSetObjectOrientation(clientID, tip, relative_handle, rpy_orientation, sim.simx_opmode_oneshot)
-        
-        print(f"设置位置: {position}, 设置姿态: {rpy_orientation}")
+    sim.simxSetObjectPosition(clientID, tip, relative_handle, position, sim.simx_opmode_oneshot)
+    print(f"设置位置: {position}")
+
+def set_orientation(clientID, handlname, rpy_orientation, relative_handle=-1):
+    """设置机械臂末端姿态"""
+    sim.simxGetPingTime(clientID=clientID)
+    _, tip = sim.simxGetObjectHandle(clientID, handlname, sim.simx_opmode_blocking)
+    sim.simxSetObjectOrientation(clientID, tip, relative_handle, rpy_orientation, sim.simx_opmode_oneshot)
+    print(f"设置姿态: {rpy_orientation}")
+
+def encode_visionsensorImage(raw_image,resolution):
+    img = np.array(raw_image,dtype=np.uint8)
+    img.resize([resolution[1],resolution[0],3])
+    img = cv2.flip(img,0)
+    return img
+
+def get_vs_img(clientID,handlname,mode=0):
+    if mode == 0:
+        _,vs_handle = sim.simxGetObjectHandle(clientID,handlname,sim.simx_opmode_blocking)
+        ret,resolution,raw_image=sim.simxGetVisionSensorImage(clientID,vs_handle,0,sim.simx_opmode_streaming)
+        time.sleep(0.5)
+        print("ret0",ret)
+        print("res0",resolution)
+
+    elif mode == 1:
+        _,vs_handle = sim.simxGetObjectHandle(clientID,handlname,sim.simx_opmode_blocking)
+        ret,resolution,raw_image = sim.simxGetVisionSensorImage(clientID,vs_handle,0,sim.simx_opmode_buffer)
+        print(ret)
+        print(resolution)
+        img = encode_visionsensorImage(raw_image,resolution)
+        print(img.shape)
+        return img
+    else:
+        print('Error mode')
+
+
 
 def main():
 
@@ -101,6 +132,9 @@ def main():
     if robot.connect():
         # 启用同步模式
         sim.simxSynchronous(clientID, True)
+        get_vs_img(clientID,'/camera',mode=0)
+        plt.ion()
+        fig = plt.figure("vs_img")
         while True:
             # 获取真实机械臂数据
             joint_angles = robot.get_joint_angles()
@@ -108,13 +142,26 @@ def main():
             pos = robot.get_position()
             
             # 同步到仿真机械臂
-            i5_robot_arm(clientID, '/base_link', joint_angles, ori, pos)
+            # 在 main 函数中替换原来的 i5_robot_arm 调用
+            set_joint_angles(clientID, '/1axis', joint_angles)
+            img = get_vs_img(clientID,'/camera',mode=1)
+            savefile = './Images/'+str(time.time())+'.jpg'
+            img_translation = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            cv2.imwrite(savefile,img_translation)
+            ax = fig.add_subplot(111)
+            plt.imshow(img)
+            plt.pause(0.1)
+            fig.clf()
+            
+            # set_position(clientID, '/base_link', pos)
+            # set_orientation(clientID, '/base_link', ori)
             
             # 触发仿真步进
             sim.simxSynchronousTrigger(clientID)
-            
+
     sim.simxStopSimulation(clientID, sim.simx_opmode_blocking)
     print("simulation stop")
+    plt.ioff()
     sim.simxFinish(clientID)
 
 

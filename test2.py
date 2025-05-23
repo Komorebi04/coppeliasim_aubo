@@ -19,8 +19,8 @@ def i5_robot():
         real_pos = robot.get_current_waypoint()
         print(real_pos)
 
-        joint_radian = (math.radians(0), math.radians(10), math.radians(90), math.radians(10), math.radians(90), math.radians(0))  # 或者 [0, 0, 0, 0, 0, 0]
-        move1 = robot.move_joint(joint_radian)
+        # joint_radian = (math.radians(0), math.radians(10), math.radians(90), math.radians(10), math.radians(90), math.radians(0))  # 或者 [0, 0, 0, 0, 0, 0]
+        # move1 = robot.move_joint(joint_radian)
         # print("move over")
         # move2 = robot.move_line(joint_radian)
         #正解
