@@ -10,7 +10,7 @@ from collections import deque
 
 # 在AuboRobot类中添加
 class AuboRobot:
-    def __init__(self, ip="192.168.24.129", port=8899):
+    def __init__(self, ip="192.168.24.130", port=8899):
         self.robot = Auboi5Robot()
         self.ip = ip
         self.port = port
@@ -78,6 +78,7 @@ def set_joint_angles(clientID, handlname, joint_angles):
         _, joint_handle = sim.simxGetObjectHandle(clientID, f'{handlname}/Revolute_joint{i+1}', sim.simx_opmode_oneshot)
         print("关节节点句柄:",joint_handle)
         sim.simxSetJointPosition(clientID, joint_handle, joint_angles[i], sim.simx_opmode_oneshot)
+
 
 def encode_visionsensorImage(raw_image, resolution):
     img = np.array(raw_image, dtype=np.uint8)
@@ -169,11 +170,11 @@ def main():
 
     # 创建线程
     motion_thread = threading.Thread(target=control_robot_motion, args=(robot, clientID), daemon=True)
-    camera_thread = threading.Thread(target=process_camera, args=(clientID,), daemon=True)
+    # camera_thread = threading.Thread(target=process_camera, args=(clientID,), daemon=True)
 
     # 启动线程
     motion_thread.start()
-    camera_thread.start()
+    # camera_thread.start()
 
     try:
         last_time = time.time()
@@ -198,7 +199,7 @@ def main():
     # 确保线程能够终止
     # 注意：这里可能需要更复杂的线程终止机制，如使用标志位或事件
     motion_thread.join(timeout=0.5)
-    camera_thread.join(timeout=0.5)
+    # camera_thread.join(timeout=0.5)
 
     # 仿真结束
     sim.simxStopSimulation(clientID, sim.simx_opmode_blocking)
