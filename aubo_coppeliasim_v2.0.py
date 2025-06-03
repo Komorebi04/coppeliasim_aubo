@@ -153,39 +153,35 @@ def tcp_server(host, port):
 # 修改信号处理线程
 def signal_handler(signal_generator, queue):
     for signal in signal_generator:
-        print(f"信号处理器接收到信号: {signal}")  # 添加调试输出
-        queue.put(signal)
-        time.sleep(0.1)  # 添加短暂延迟确保信号被处理
+        if signal:  # 确保信号不为空
+            print(f"信号处理器接收到信号: {signal}")
+            queue.put_nowait(signal)
+            time.sleep(0.1)
 
-# 修改控制线程
 def control_robot_motion(robot, clientID, queue):
     while True:
-        # 获取真实机械臂数据
         joint_angles = robot.get_joint_angles()
         if joint_angles is not None:
             set_joint_angles(clientID, '/1axis', joint_angles)
         
-        # 检查信号队列
         try:
-            signal = queue.get_nowait()
-            print(f"控制线程接收到信号: {signal}")  # 修改调试输出
+            signal = queue.get()  # 改为阻塞式获取，带超时
+            print(f"控制线程接收到信号: {signal}")
             if signal.strip().lower() == 'catch_ok':
                 print("开始处理catch_ok信号")
                 ret1 = sim.simxSetInt32Signal(clientID, 'RG2_open', 0, sim.simx_opmode_blocking)
                 ret2 = sim.simxAddStatusbarMessage(clientID,"catch ok",sim.simx_opmode_blocking)
                 print(f"设置信号返回值: {ret1}, 状态栏消息返回值: {ret2}")
-                print("抓取完成")
             elif signal.strip().lower() == 'release_ok':
-                print("开始处理release_ok信号")  # 添加调试输出
+                print("开始处理release_ok信号")
                 ret1 = sim.simxSetInt32Signal(clientID, 'RG2_open', 1, sim.simx_opmode_blocking)
                 ret2 = sim.simxAddStatusbarMessage(clientID,"release ok",sim.simx_opmode_blocking)
-                print(f"设置信号返回值: {ret1}, 状态栏消息返回值: {ret2}")  # 添加调试输出
-                print("释放完成")
+                print(f"设置信号返回值: {ret1}, 状态栏消息返回值: {ret2}")
         except Empty:
-            print("队列为空")  # 添加调试输出
-            pass
-        
-        time.sleep(0.1)
+            print("队列为空，等待信号...")  # 添加调试信息
+            time.sleep(0.1)
+        except Exception as e:
+            print(f"处理信号时发生错误: {str(e)}")
 
 # 修改相机处理线程
 def process_camera(clientID, queue):
@@ -245,7 +241,7 @@ def main():
     signal_generator = tcp_server('192.168.113.66', 8888)  # 使用您想要的端口
     
     # 创建线程安全的队列用于信号传递
-    signal_queue = Queue()
+    signal_queue = queue.Queue()
     
     # 创建线程
     signal_thread = threading.Thread(target=signal_handler, args=(signal_generator, signal_queue), daemon=True)
