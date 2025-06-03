@@ -127,7 +127,7 @@ def main():
     else:
         print ('Failed connecting to remote API server')
 
-    sim.simxStartSimulation(clientID,sim.simx_opmode_blocking)
+    sim.simxStartSimulation(clientID,sim.simx_opmode_oneshot)
     print("simulation start")
 
     robot = AuboRobot()
@@ -137,7 +137,7 @@ def main():
         # get_vs_img(clientID,'/camera',mode=0)
         # plt.ion()
         # fig = plt.figure("vs_img")
-        sim.simxSetInt32Signal(clientID,'RG2_open', 1, sim.simx_opmode_blocking)
+        sim.simxSetInt32Signal(clientID,'RG2_open', 0, sim.simx_opmode_blocking)
         while True:
             # 获取真实机械臂数据
             joint_angles = robot.get_joint_angles()

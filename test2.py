@@ -10,7 +10,7 @@ def i5_robot():
 
     handle = robot.create_context()
 
-    ip = "192.168.24.129"
+    ip = "192.168.24.130"
     port = 8899
     result = robot.connect(ip,port)
 
@@ -25,20 +25,24 @@ def i5_robot():
         # move2 = robot.move_line(joint_radian)
         #正解
         # fk=robot.forward_kin(joint_radian)
-        fk=robot.forward_kin(real_pos['joint'])
-        np.set_printoptions(suppress=True)
-        rpy=robot.quaternion_to_rpy(fk['ori'])
+        # fk=robot.forward_kin(real_pos['joint'])
+        # np.set_printoptions(suppress=True)
+        # rpy=robot.quaternion_to_rpy(fk['ori'])
         # rpy=np.array(rpy)*180/pi
-        print('正解:',fk)
-        print('正解欧拉角：',rpy)
+        # print('正解:',fk)
+        # print('正解欧拉角：',rpy)
         #逆解
         # ik=robot.inverse_kin(joint_radian,fk['pos'],fk['ori'])
-        ik=robot.inverse_kin(real_pos['joint'],fk['pos'],fk['ori'])
-        joint_radian=ik['joint']
-        joint_deg=np.array(ik['joint'])*180/pi
-        print('逆解弧度:',joint_radian)
-        print('逆解角度:',joint_deg)
-        #
+        pos = [-0.44, -0.78, 0.5]
+        rpy1 = [0.0, 0.0, 0.0]
+        ori = robot.rpy_to_quaternion(rpy1)
+        print(ori)
+        ik=robot.inverse_kin(real_pos['joint'],real_pos['pos'],real_pos['ori'])
+        # joint_radian=ik['joint_radian']
+        # joint_deg=np.array(ik['joint'])*180/pi
+        # print('逆解弧度:',joint_radian)
+        # print('逆解角度:',joint_deg)
+        print(ik)
 
     else:
         print("failed connet")
